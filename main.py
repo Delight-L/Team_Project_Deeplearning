@@ -9,6 +9,8 @@ from PIL import Image
 
 from tqdm import tqdm
 
+import wandb
+
 
 # =========================================================
 # 1. 데이터 경로
@@ -226,6 +228,17 @@ optimizer = torch.optim.Adam(
     lr=0.001
 )
 
+wandb.init(
+    project="skin-disease-resnet18",
+    name="resnet18-baseline",
+    config={
+        "model": "ResNet18",
+        "batch_size": 32,
+        "learning_rate": 0.001,
+        "epochs": 10,
+        "num_classes": len(classes)
+    }
+)
 
 # =========================================================
 # 13. 학습 설정
@@ -238,6 +251,8 @@ valid_losses = []
 
 train_accuracies = []
 valid_accuracies = []
+
+best_valid_accuracy = 0.0
 
 
 # =========================================================
@@ -344,7 +359,47 @@ for epoch in range(num_epochs):
 
 
     # =====================================================
-    # 16. Epoch 결과 출력
+    # 16. W&B 기록
+    # =====================================================
+
+    wandb.log({
+        "train_loss": train_average_loss,
+        "train_accuracy": train_accuracy,
+        "valid_loss": valid_average_loss,
+        "valid_accuracy": valid_accuracy
+    })
+
+
+    # =====================================================
+    # 17. Best Model 저장
+    # =====================================================
+
+    if valid_accuracy > best_valid_accuracy:
+
+        best_valid_accuracy = valid_accuracy
+
+        torch.save({
+            "epoch": epoch + 1,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "valid_accuracy": valid_accuracy,
+            "valid_loss": valid_average_loss,
+            "classes": classes
+        }, "best_resnet18.pth")
+
+        wandb.log({
+            "best_valid_accuracy": best_valid_accuracy
+        })
+
+        print(
+            f"Best Model 저장 완료 | "
+            f"Epoch: {epoch + 1} | "
+            f"Valid Accuracy: {valid_accuracy:.4f}"
+        )
+
+
+    # =====================================================
+    # 18. Epoch 결과 출력
     # =====================================================
 
     print(
@@ -354,3 +409,5 @@ for epoch in range(num_epochs):
         f"Valid Loss: {valid_average_loss:.4f} "
         f"Valid Accuracy: {valid_accuracy:.4f}"
     )
+
+wandb.finish()
